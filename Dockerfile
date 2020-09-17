@@ -1,4 +1,4 @@
-FROM ubuntu:16.04
+FROM ubuntu:20.04
 
 # The Rust toolchain to use when building our image
 ARG TOOLCHAIN=stable
@@ -6,6 +6,7 @@ ARG TARGET=x86_64-unknown-linux-musl
 ARG OPENSSL_ARCH=linux-x86_64
 
 ENV RUST_MUSL_CROSS_TARGET=$TARGET
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Make sure we have basic dev tools for building C libraries.  Our goal
 # here is to support the musl-libc builds and Cargo builds needed for a
@@ -21,6 +22,7 @@ RUN apt-get update && \
         sudo \
         xutils-dev \
         unzip \
+        texinfo \
         && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
@@ -32,7 +34,7 @@ RUN cd /tmp && \
     mv musl-cross-make-master musl-cross-make && \
     cp /tmp/config.mak /tmp/musl-cross-make/config.mak && \
     cd /tmp/musl-cross-make && \
-    TARGET=$TARGET make install > /tmp/musl-cross-make.log && \
+    TARGET=$TARGET make -j$(nproc) install > /tmp/musl-cross-make.log && \
     ln -s /usr/local/musl/bin/$TARGET-strip /usr/local/musl/bin/musl-strip && \
     cd /tmp && \
     rm -rf /tmp/musl-cross-make /tmp/musl-cross-make.log
@@ -75,7 +77,7 @@ RUN export CC=$TARGET_CC && \
     sha256sum -c checksums.txt && \
     tar xzf zlib-$VERS.tar.gz && cd zlib-$VERS && \
     ./configure --static --archs="-fPIC" --prefix=/usr/local/musl/$TARGET && \
-    make && sudo make install && \
+    make -j$(nproc) && sudo make install && \
     cd .. && rm -rf zlib-$VERS.tar.gz zlib-$VERS checksums.txt && \
     echo "Building OpenSSL" && \
     VERS=1.0.2q && \
@@ -86,7 +88,7 @@ RUN export CC=$TARGET_CC && \
     tar xzf openssl-$VERS.tar.gz && cd openssl-$VERS && \
     ./Configure $OPENSSL_ARCH -fPIC --prefix=/usr/local/musl/$TARGET && \
     make depend && \
-    make && sudo make install && \
+    make -j$(nproc) && sudo make install && \
     cd .. && rm -rf openssl-$VERS.tar.gz openssl-$VERS checksums.txt
 
 ENV OPENSSL_DIR=/usr/local/musl/$TARGET/ \
